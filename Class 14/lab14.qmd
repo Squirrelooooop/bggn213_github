@@ -1,0 +1,146 @@
+---
+title: "Class 14: RNASeq Mini Project"
+author: "Yanlin"
+format: pdf
+---
+
+## Import data
+
+```{R}
+counts <- read.csv("GSE37704_featurecounts.csv", row.names = 1)
+metadata <- read.csv("GSE37704_metadata.csv")
+```
+
+Match the columns of `counts` with rows of `metadata`
+```{R}
+countData <- counts[,-1]
+colnames(countData) == metadata$id
+```
+
+```{R}
+x <- c(T, F, T, T)
+if(all(x)) {
+  cat("Me happy")
+} else {
+  cat("Me no happy")
+}
+```
+
+Filter out zero from the dataset
+```{R}
+to.keep.inds <- rowSums(countData) > 0 
+cleanCounts <- countData[to.keep.inds,]
+head(cleanCounts)
+```
+```{R}
+#| message: false
+library(DESeq2)
+```
+
+```{R}
+dds <- DESeqDataSetFromMatrix(cleanCounts,
+                       metadata,
+                       design = ~condition)
+dds <- DESeq(dds)
+res <- results(dds)
+```
+
+```{R}
+head(res)
+```
+
+## Data Viz
+
+```{R}
+plot(res$log2FoldChange, -log(res$padj))
+```
+
+### Pathway Analysis/ Annotation of genes
+
+First translate Ensemble IDs in `res` to Entrez and gene symbol formats use `mapIds()` in `AnnotationDbi`
+```{R}
+library(AnnotationDbi)
+library(org.Hs.eg.db)
+columns(org.Hs.eg.db)
+
+library(gage)
+library(gageData)
+library(pathview)
+data(kegg.sets.hs)
+data(sigmet.idx.hs)
+```
+
+Map to "SYMBOL", "ENTREZID", "GENENAME" from "ENSEMBL"
+```{R}
+res$genename <- mapIds(org.Hs.eg.db,
+                  keys = rownames(res),
+                  keytype = "ENSEMBL",
+                  column = "GENENAME")
+
+res$symbol <- mapIds(org.Hs.eg.db,
+                  keys = rownames(res),
+                  keytype = "ENSEMBL",
+                  column = "SYMBOL")
+res$entrez <- mapIds(org.Hs.eg.db,
+                  keys = rownames(res),
+                  keytype = "ENSEMBL",
+                  column = "ENTREZID")
+head(res)
+```
+
+Focus on "top" hits, start with log2FC of +2/-2 and adj. p-value of 0.05
+```{R}
+
+top.inds <- (abs(res$log2FoldChange) > 2) & (res$padj < 0.05)
+sum(is.na(res$log2FoldChange))
+sum(is.na(res$padj))
+top.inds[is.na(top.inds)] <- F
+top.genes <- res[top.inds,]
+write.csv(top.genes, file = "top_geneset.csv")
+```
+
+**gage** wants a vector of importance as input with gene names as labels - KEGG speaks "ENTREZID"
+```{R}
+foldchanges <- res$log2FoldChange
+names(foldchanges) <- res$entrez
+head(foldchanges)
+```
+```{R}
+keggres <- gage(foldchanges, gsets = kegg.sets.hs)
+attributes(keggres)
+```
+```{R}
+head(keggres$less, 4)
+```
+
+hsa04110 pathway
+```{R}
+pathview(foldchanges, pathway.id = "hsa04110")
+```
+![hsa04110 Pathway Figure](hsa04110.pathview.png)
+
+### Focus on GO
+```{R}
+data(go.sets.hs)
+data(go.subs.hs)
+
+gobpsets = go.sets.hs[go.subs.hs$BP]
+
+gobpres = gage(foldchanges, gsets=gobpsets, same.dir=TRUE)
+
+lapply(gobpres, head)
+```
+
+#### run reactome online need a text file with a gene id per line
+
+```{R}
+sig_genes <- res[res$padj <= 0.05 & !is.na(res$padj), "symbol"]
+print(paste("Total number of significant genes:", length(sig_genes)))
+write.table(sig_genes, 
+            file="significant_genes.txt", 
+            row.names=FALSE, 
+            col.names=FALSE, 
+            quote=FALSE)
+```
+
+![Cell cycle figure from reactome](R-HSA-68886.png)
