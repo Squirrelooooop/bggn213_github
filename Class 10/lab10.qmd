@@ -1,0 +1,77 @@
+---
+title: "Class 10"
+author: "Yanlin"
+format: pdf
+---
+Q1: What percentage of structures in the PDB are solved by X-Ray and Electron Microscopy. --83.255 and 10.234 respectively. 
+
+Q2: What proportion of structures in the PDB are protein? --protein only is 86.4%
+
+Q3: Type HIV in the PDB website search box on the home page and determine how many HIV-1 protease structures are in the current PDB? --4,563
+
+```{R}
+pdbsum <- read.csv("Data Export Summary.csv", row.names = 1)
+pdbsum
+```
+```{R}
+x <- pdbsum$Total
+x
+```
+
+```{R}
+convert_comma_number <- function(x) {
+  x <- gsub(',','', x)
+  x <- as.numeric(x)
+  return(x)
+}
+
+n.tot <- sum(convert_comma_number(x))
+```
+
+The `apply()` function takes any function and "apply" it over either the ROWs or COLs of a data.frame
+```{R}
+n.pdbsum <- apply(pdbsum, 2, convert_comma_number)
+colSums(apply(pdbsum, 2, convert_comma_number)) / n.tot
+```
+```{R}
+n.pdbsum[1, "Total"]/n.tot
+```
+`read_csv()` from library `readr` can remove `,` in the numeric data automatically
+
+## Using Mol*
+
+![My first image from Mol-star](1HSG.png)
+Q4: Water molecules normally have 3 atoms. Why do we see just one atom per water molecule in this structure? -- H is too small
+
+Q5: There is a critical “conserved” water molecule in the binding site. Can you identify this water molecule? What residue number does this water molecule have --308
+
+Q6: Generate and save a figure clearly showing the two distinct chains of HIV-protease along with the ligand. You might also consider showing the catalytic residues ASP 25 in each chain and the critical water (we recommend “Ball & Stick” for these side-chains)
+
+![The all important ASP25 amino acids and HOH 308](1HSG1.png)
+
+![Surface representation showing the binding cleft](1HSG2.png)
+
+Q7: How many amino acid residues are there in this pdb object? --198
+
+Q8: Name one of the two non-protein residues? --HOH (127), MK1 (1) 
+
+Q9: How many protein chains are in this structure? --2
+
+```{R}
+library(bio3d)
+library(shiny)
+library(r3dmol)
+```
+```{R}
+pdb <- read.pdb("1hsg.pdb")
+pdb
+attributes(pdb)
+```
+
+```{R}
+adk <- read.pdb("6s36")
+adk
+m <- nma(adk)
+plot(m)
+mktrj(m, file="adk_m7.pdb")
+```
